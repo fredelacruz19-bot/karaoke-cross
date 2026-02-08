@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎤 Cross Karaoke - Login (GitHub Actions Deploy Test)</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <h1>🎤 Cross Karaoke</h1>
+      <p style="color: var(--border); margin-bottom: 1.5rem;">
+        La mejor plataforma de karaoke colaborativo
+      </p>
+
+      <div class="login-options">
+        <button id="login-btn-google" class="btn btn-primary">
+          🔵 Ingresar con Google
+        </button>
+
+        <div class="auth-divider">
+          ─ O ─
+        </div>
+
+        <div class="form-group" style="text-align: left;">
+          <label for="email-input">Email:</label>
+          <input type="email" id="email-input" placeholder="tu@email.com" />
+        </div>
+
+        <div class="form-group" style="text-align: left;">
+          <label for="password-input">Contraseña:</label>
+          <input type="password" id="password-input" placeholder="••••••••" />
+        </div>
+
+        <button id="login-btn-email" class="btn btn-secondary">
+          Ingresar con Email
+        </button>
+
+        <p style="font-size: 0.875rem; color: var(--border);">
+          ¿No tienes cuenta?
+          <a href="#" onclick="alert('El registro se encuentra en desarrollo'); return false;"
+            style="color: var(--primary); text-decoration: none;">
+            Regístrate aquí
+          </a>
+        </p>
+      </div>
+
+      <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+        <p style="font-size: 0.875rem; color: var(--border); margin: 0;">
+          👨‍💼 ¿Eres administrador?<br />
+          Contacta al equipo de soporte
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    console.log("✅ index.html cargado");
+    
+    import { initializeAuthUI } from "./js/auth.js";
+    
+    // Esperar a que el DOM esté listo
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", async () => {
+        console.log("✅ DOM ready, inicializando auth UI...");
+        try {
+          await initializeAuthUI();
+          console.log("✅ Auth UI inicializada correctamente");
+        } catch (error) {
+          console.error("❌ Error inicializando Auth UI:", error);
+        }
+      });
+    } else {
+      // DOM ya está listo
+      console.log("✅ DOM already ready, inicializando auth UI...");
+      initializeAuthUI().catch(error => {
+        console.error("❌ Error inicializando Auth UI:", error);
+      });
+    }
+  </script>
+</body>
+
+</html>
