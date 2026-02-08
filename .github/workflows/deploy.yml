@@ -18,20 +18,16 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: |
-          npm install
-          cd functions && npm install && cd ..
+      - name: Install dependencies (root)
+        run: npm install
+
+      - name: Install dependencies (functions)
+        run: cd functions && npm install && cd ..
 
       - name: Build functions
         run: cd functions && npm run build && cd ..
 
       - name: Deploy to Firebase
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: live
-          projectId: karaoke-cross
+        run: npx firebase-tools deploy --token "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" --project karaoke-cross
         env:
-          FIREBASE_CLI_EXPERIMENTS: webframeworks
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
