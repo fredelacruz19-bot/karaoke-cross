@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cross Karaoke - Solicitar Canción</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+  <header>
+    <h1>🎤 Solicitar Canción</h1>
+    <nav>
+      <button id="logout-btn" class="btn btn-danger">Logout</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Estado de Solicitudes -->
+    <div id="requests-closed-alert" class="alert alert-warning" style="display: none;">
+      <strong>⚠️ Las solicitudes están cerradas</strong><br />
+      El DJ ha deshabilitado las solicitudes de canciones por el momento.
+    </div>
+
+    <!-- Información de Sesión -->
+    <div class="card">
+      <h2 id="session-name">Sesión</h2>
+      <p id="queue-status">Cargando información...</p>
+    </div>
+
+    <!-- Formulario de Solicitud -->
+    <div class="request-form">
+      <h2>Buscar Canción</h2>
+
+      <div class="form-group">
+        <label for="search-input">🔍 Buscar en YouTube:</label>
+        <div style="display: flex; gap: 0.5rem;">
+          <input type="text" id="search-input" placeholder="Ej: Bohemian Rhapsody Queen"
+            style="flex: 1;" />
+          <button id="search-btn" class="btn btn-secondary">Buscar</button>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin: 1.5rem 0; color: var(--border);">
+        ─ O ─
+      </div>
+
+      <div class="form-group">
+        <label for="youtube-url-input">📺 Pega un link de YouTube:</label>
+        <div style="display: flex; gap: 0.5rem;">
+          <input type="text" id="youtube-url-input" placeholder="https://www.youtube.com/watch?v=..."
+            style="flex: 1;" />
+          <button id="add-from-url-btn" class="btn btn-success">Solicitar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resultados de Búsqueda -->
+    <div id="search-results" class="search-results"></div>
+
+    <!-- Mis Solicitudes -->
+    <div class="card">
+      <h2>Mis Solicitudes</h2>
+      <div id="my-requests">
+        <p>No has solicitado canciones aún</p>
+      </div>
+    </div>
+
+    <!-- Historial de Canciones Reproducidas -->
+    <div class="card">
+      <h2>Canciones Reproducidas</h2>
+      <div id="played-history">
+        <p>Esperando canciones...</p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Cross Karaoke</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script type="module">
+    import { getCurrentUser, getUserProfile, logoutUser, initializeAuthUI, checkUserAccess } from "./js/auth.js";
+    import { subscribeToSession, addToQueue } from "./js/app.js";
+
+    let sessionId = null;
+    let session = null;
+    let currentUser = null;
+    let userProfile = null;
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      try {
+        // Verificar acceso
+        const isAuthorized = await checkUserAccess();
+        if (!isAuthorized) return;
+
+        // Obtener usuario actual
+        currentUser = await getCurrentUser();
+        userProfile = await getUserProfile(currentUser.uid);
+
+        // Obtener sessionId de URL
+        const urlParams = new URLSearchParams(window.location.search);
+        sessionId = urlParams.get("sessionId");
+
+        if (!sessionId) {
+          alert("Sesión no especificada");
+          window.location.href = "home.html";
+          return;
+        }
+
+        initializeAuthUI();
+
+        // Suscribirse a cambios de sesión
+        subscribeToSession(sessionId, (updatedSession) => {
+          session = updatedSession;
+          updateUI();
+        });
+
+        // Inicializar controles
+        setupControls();
+
+      } catch (error) {
+        console.error("Error initializing request page:", error);
+        alert(error.message);
+        window.location.href = "Index.html";
+      }
+    });
+
+    function updateUI() {
+      // Nombre de sesión
+      const sessionNameEl = document.getElementById("session-name");
+      if (sessionNameEl && session) {
+        sessionNameEl.textContent = session.name;
+      }
+
+      // Estado de la cola
+      const queueStatusEl = document.getElementById("queue-status");
+      if (queueStatusEl && session) {
+        const queueCount = session.queue?.length || 0;
+        const estimatedTime = calculateEstimatedTime(session.queue);
+        queueStatusEl.innerHTML = `
+          <p>📊 En la cola: <strong>${queueCount}</strong> canciones</p>
+          <p>⏱️ Tiempo estimado: <strong>${estimatedTime}</strong></p>
+          <p style="color: var(--border); font-size: 0.875rem;">
+            Solicitudes: ${session.requestsEnabled ? "✅ Habilitadas" : "❌ Deshabilitadas"}
+          </p>
+        `;
+      }
+
+      // Mostrar/ocultar alerta de solicitudes cerradas
+      const closedAlert = document.getElementById("requests-closed-alert");
+      if (closedAlert) {
+        closedAlert.style.display = session?.requestsEnabled === false ? "block" : "none";
+      }
+
+      // Mostrar solicitudes propias
+      updateMyRequestsUI();
+
+      // Mostrar historial
+      updateHistoryUI();
+    }
+
+    function updateMyRequestsUI() {
+      const myRequestsEl = document.getElementById("my-requests");
+      if (!session?.queue) return;
+
+      const myRequests = session.queue.filter(item => item.requestedBy === currentUser.uid);
+
+      if (myRequests.length === 0) {
+        myRequestsEl.innerHTML = "<p>No has solicitado canciones aún</p>";
+        return;
+      }
+
+      myRequestsEl.innerHTML = myRequests
+        .map((item, index) => `
+          <div class="queue-item">
+            <div>
+              <div class="queue-title">${item.title}</div>
+              <div class="queue-time">Duración: ${item.duration}s</div>
+              <div style="font-size: 0.75rem; color: var(--border);">
+                Solicitado hace ${formatTime(new Date() - new Date(item.addedAt))}
+              </div>
+            </div>
+          </div>
+        `)
+        .join("");
+    }
+
+    function updateHistoryUI() {
+      const historyEl = document.getElementById("played-history");
+      if (!session?.history || session.history.length === 0) {
+        historyEl.innerHTML = "<p>Esperando canciones...</p>";
+        return;
+      }
+
+      historyEl.innerHTML = session.history
+        .slice(0, 10)
+        .map((item) => `
+          <div style="padding: 0.75rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.3s;"
+            onmouseover="this.style.background='rgba(239,68,68,0.1)'"
+            onmouseout="this.style.background='transparent'">
+            <div class="queue-title">${item.title}</div>
+            <div class="queue-time">
+              📅 ${new Date(item.playedAt).toLocaleString()}
+            </div>
+          </div>
+        `)
+        .join("");
+    }
+
+    function setupControls() {
+      // Buscar canciones
+      document.getElementById("search-btn").addEventListener("click", async () => {
+        const searchTerm = document.getElementById("search-input").value.trim();
+        if (!searchTerm) {
+          alert("Escribe un término de búsqueda");
+          return;
+        }
+
+        if (!session?.requestsEnabled) {
+          alert("Las solicitudes están deshabilitadas");
+          return;
+        }
+
+        // Simulación de búsqueda (en producción, usar YouTube Data API)
+        document.getElementById("search-results").innerHTML = `
+          <div class="alert alert-info">
+            ℹ️ La búsqueda en YouTube requiere YouTube Data API en el backend.
+            Usa la opción de pegar URL para solicitar una canción.
+          </div>
+        `;
+      });
+
+      // Agregar desde URL
+      document.getElementById("add-from-url-btn").addEventListener("click", async () => {
+        const url = document.getElementById("youtube-url-input").value.trim();
+
+        if (!url) {
+          alert("Pega una URL de YouTube");
+          return;
+        }
+
+        if (!session?.requestsEnabled) {
+          alert("Las solicitudes están deshabilitadas");
+          return;
+        }
+
+        // Validar URL
+        if (!url.includes("youtube.com") && !url.includes("youtu.be")) {
+          alert("Por favor pega una URL de YouTube válida");
+          return;
+        }
+
+        try {
+          const btn = document.getElementById("add-from-url-btn");
+          btn.disabled = true;
+
+          // En producción, obtener metadata del video desde backend
+          // Por ahora, usar valores placeholder
+          await addToQueue(
+            sessionId,
+            "Título Placeholder (obtener desde YouTube Data API)",
+            url,
+            "https://via.placeholder.com/120x90",
+            180,
+            0
+          );
+
+          document.getElementById("youtube-url-input").value = "";
+          alert("✅ Canción solicitada correctamente");
+        } catch (error) {
+          alert(`Error: ${error.message}`);
+        }
+      });
+    }
+
+    function calculateEstimatedTime(queue) {
+      if (!queue || queue.length === 0) return "0 min";
+
+      const totalSeconds = queue.reduce((sum, item) => sum + (item.duration || 0), 0);
+      const minutes = Math.floor(totalSeconds / 60);
+      const hours = Math.floor(minutes / 60);
+
+      if (hours > 0) {
+        return `${hours}h ${minutes % 60}min`;
+      } else if (minutes > 0) {
+        return `${minutes}min`;
+      } else {
+        return `${totalSeconds}s`;
+      }
+    }
+
+    function formatTime(ms) {
+      const seconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+
+      if (hours > 0) return `${hours}h`;
+      if (minutes > 0) return `${minutes}m`;
+      return `${seconds}s`;
+    }
+  </script>
+</body>
+
+</html>

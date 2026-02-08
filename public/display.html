@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cross Karaoke - Display</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <style>
+    .display-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    #video-player {
+      width: 100%;
+      max-width: 1200px;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    #video-player iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    .display-bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    .display-qr {
+      text-align: center;
+    }
+
+    .display-qr h3 {
+      color: var(--primary);
+      margin-bottom: 1rem;
+    }
+
+    #qr-code {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      display: inline-block;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .display-queue {
+      text-align: center;
+    }
+
+    .display-queue h3 {
+      color: var(--primary);
+      margin-bottom: 1rem;
+    }
+
+    .queue-carousel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 1rem;
+      background: var(--dark-light);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .queue-card {
+      background: var(--dark);
+      padding: 1rem;
+      border-radius: 6px;
+      border: 2px solid var(--border);
+      transition: all 0.3s;
+      text-align: left;
+    }
+
+    .queue-card.playing {
+      border-color: var(--primary);
+      background: rgba(239, 68, 68, 0.1);
+      transform: scale(1.05);
+    }
+
+    .queue-card-number {
+      font-size: 2rem;
+      font-weight: bold;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+    }
+
+    .queue-card-title {
+      font-weight: 500;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .queue-card-duration {
+      font-size: 0.875rem;
+      color: var(--border);
+    }
+
+    .no-video-display {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 500px;
+      background: var(--dark-light);
+      border-radius: 12px;
+      border: 2px solid var(--border);
+      margin-bottom: 2rem;
+    }
+
+    .no-video-display h2 {
+      color: var(--primary);
+      font-size: 2.5rem;
+      margin: 0;
+    }
+
+    .no-video-display p {
+      color: var(--text);
+      font-size: 1.2rem;
+    }
+
+    .between-songs {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 500px;
+      background: linear-gradient(135deg, var(--dark) 0%, var(--dark-light) 100%);
+      border-radius: 12px;
+      border: 2px solid var(--primary);
+      margin-bottom: 2rem;
+    }
+
+    .between-songs h2 {
+      color: var(--primary);
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .between-songs-countdown {
+      font-size: 4rem;
+      color: var(--success);
+      font-weight: bold;
+    }
+
+    @media (max-width: 768px) {
+      .display-wrapper {
+        padding: 1rem;
+      }
+
+      .display-bottom {
+        grid-template-columns: 1fr;
+      }
+
+      .between-songs h2 {
+        font-size: 2rem;
+      }
+
+      .between-songs-countdown {
+        font-size: 3rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="display-wrapper">
+    <div id="video-player"></div>
+
+    <div class="display-bottom">
+      <div class="display-qr">
+        <h3>📱 Solicitar Canción</h3>
+        <div id="qr-code"></div>
+      </div>
+
+      <div class="display-queue">
+        <h3>🎵 Próximas Canciones</h3>
+        <div class="queue-carousel" id="queue-list">
+          <p>Esperando sesión...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script type="module">
+    import { db } from "./js/firebase.js";
+    import { subscribeToSession } from "./js/app.js";
+    import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    let sessionId = null;
+    let session = null;
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      try {
+        // Obtener sessionId de URL
+        const urlParams = new URLSearchParams(window.location.search);
+        sessionId = urlParams.get("sessionId");
+
+        if (!sessionId) {
+          document.body.innerHTML = "<h1>Sesión no especificada</h1>";
+          return;
+        }
+
+        // Generar QR
+        generateQR();
+
+        // Suscribirse a cambios de sesión
+        subscribeToSession(sessionId, (updatedSession) => {
+          session = updatedSession;
+          updateDisplay();
+        });
+
+      } catch (error) {
+        console.error("Error initializing display:", error);
+        document.body.innerHTML = `<h1>Error: ${error.message}</h1>`;
+      }
+    });
+
+    function generateQR() {
+      const qrContainer = document.getElementById("qr-code");
+      qrContainer.innerHTML = "";
+      try {
+        new QRCode(qrContainer, {
+          text: `${window.location.origin}/Request.html?sessionId=${sessionId}`,
+          width: 256,
+          height: 256,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.H
+        });
+      } catch (error) {
+        console.error("Error generating QR:", error);
+      }
+    }
+
+    function updateDisplay() {
+      const videoPlayer = document.getElementById("video-player");
+      const queueList = document.getElementById("queue-list");
+
+      // Mostrar video actual
+      if (session?.currentSong) {
+        const videoId = extractYouTubeId(session.currentSong.url);
+        if (videoId) {
+          videoPlayer.innerHTML = `
+            <iframe 
+              src="https://www.youtube.com/embed/${videoId}?autoplay=1&controls=1&rel=0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+              allowfullscreen>
+            </iframe>
+          `;
+        }
+      } else if (session?.queue && session.queue.length > 0) {
+        // Mostrar pantalla entre canciones
+        videoPlayer.innerHTML = `
+          <div class="between-songs">
+            <h2>🎵 Siguiente...</h2>
+            <div style="text-align: center;">
+              <div style="font-size: 1.5rem; color: var(--text); margin-bottom: 1rem;">
+                ${session.queue[0].title}
+              </div>
+              <div class="between-songs-countdown" id="countdown">
+                ${session.timeBetweenSongs || 3}
+              </div>
+              <p style="color: var(--text);">segundos</p>
+            </div>
+          </div>
+        `;
+
+        // Animar countdown
+        let count = session.timeBetweenSongs || 3;
+        const countdownEl = document.getElementById("countdown");
+        if (countdownEl) {
+          const interval = setInterval(() => {
+            count--;
+            countdownEl.textContent = Math.max(0, count);
+            if (count <= 0) clearInterval(interval);
+          }, 1000);
+        }
+      } else {
+        // Cola vacía
+        videoPlayer.innerHTML = `
+          <div class="no-video-display">
+            <h2>Esperando canciones...</h2>
+            <p>Escanea el QR para solicitar una canción</p>
+          </div>
+        `;
+      }
+
+      // Actualizar cola
+      if (session?.queue && session.queue.length > 0) {
+        queueList.innerHTML = session.queue
+          .map((item, index) => `
+            <div class="queue-card ${index === 0 ? "playing" : ""}">
+              <div class="queue-card-number">#${index + 1}</div>
+              <div class="queue-card-title" title="${item.title}">${item.title}</div>
+              <div class="queue-card-duration">⏱️ ${item.duration}s</div>
+            </div>
+          `)
+          .join("");
+      } else {
+        queueList.innerHTML = "<p style='color: var(--border);'>No hay canciones en la cola</p>";
+      }
+    }
+
+    function extractYouTubeId(url) {
+      if (!url) return null;
+
+      const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/,
+        /youtube\.com\/embed\/([^&\n?#]+)/
+      ];
+
+      for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) return match[1];
+      }
+
+      return null;
+    }
+  </script>
+</body>
+
+</html>

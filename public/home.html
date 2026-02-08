@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cross Karaoke - Home</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+  <header>
+    <h1>🎤 Cross Karaoke</h1>
+    <nav>
+      <div id="user-info" style="display: flex; align-items: center; gap: 1rem;">
+        <span id="user-name">Usuario</span>
+        <span id="user-role" style="font-size: 0.875rem; opacity: 0.8;">User</span>
+        <button id="logout-btn" class="btn btn-danger">Logout</button>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Información del Usuario -->
+    <div class="user-info">
+      <div>
+        <h3 id="user-name-display">Cargando...</h3>
+        <p id="user-email-display">Email</p>
+      </div>
+    </div>
+
+    <!-- Crear Nueva Sesión -->
+    <div class="card">
+      <h2>Crear Nueva Sesión</h2>
+      <div class="form-group">
+        <label for="session-name-input">Nombre de la sesión:</label>
+        <input type="text" id="session-name-input" placeholder="ej: Cumpleaños de Juan" />
+      </div>
+      <button id="create-session-btn" class="btn btn-primary">
+        Crear Sesión
+      </button>
+    </div>
+
+    <!-- Mis Sesiones -->
+    <section>
+      <h2>Mis Sesiones Activas</h2>
+      <div id="sessions-list">
+        <p>Cargando sesiones...</p>
+      </div>
+    </section>
+
+    <!-- Panel de Administración -->
+    <section id="admin-section" style="display: none;">
+      <h2>🔐 Panel de Administración</h2>
+
+      <!-- Métricas -->
+      <div class="cards-grid">
+        <div id="metrics-container">
+          <p>Cargando métricas...</p>
+        </div>
+      </div>
+
+      <!-- Gestión de Usuarios -->
+      <div class="card">
+        <h3>Gestión de Usuarios</h3>
+        <button id="create-user-btn" class="btn btn-primary">
+          Crear Usuario
+        </button>
+        <table id="users-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Rol</th>
+              <th>Sesiones Max</th>
+              <th>Expiración</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Cross Karaoke. Todos los derechos reservados.</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script type="module" src="js/home.js"></script>
+</body>
+
+</html>
+        <button onClick={() => window.location.href="/admin"}>Acceso Admin</button>
+      )}
+    </div>
+  );
+}

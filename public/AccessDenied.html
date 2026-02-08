@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cross Karaoke - Acceso Denegado</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+  <div class="access-denied-container">
+    <div class="access-denied-card">
+      <div class="access-denied-icon">🚫</div>
+
+      <h1>Acceso Denegado</h1>
+
+      <div id="reason-container">
+        <p id="reason-text">No tienes permiso para acceder a esta página.</p>
+      </div>
+
+      <p style="color: var(--border); font-size: 0.875rem; margin-bottom: 1.5rem;">
+        Contacta al administrador si crees que esto es un error.
+      </p>
+
+      <div style="display: flex; gap: 1rem; justify-content: center;">
+        <button class="btn btn-secondary" onclick="goBack()">
+          ← Volver
+        </button>
+        <button class="btn btn-primary" onclick="goHome()">
+          🏠 Ir a Home
+        </button>
+      </div>
+
+      <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+        <button class="btn btn-danger" onclick="logout()" style="width: 100%;">
+          Cerrar Sesión
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module">
+    import { logoutUser } from "./js/auth.js";
+
+    window.addEventListener("DOMContentLoaded", () => {
+      // Obtener razón de acceso denegado
+      const urlParams = new URLSearchParams(window.location.search);
+      const reason = urlParams.get("reason");
+
+      const reasonText = document.getElementById("reason-text");
+
+      if (reason === "expired") {
+        reasonText.textContent =
+          "Tu cuenta ha expirado. Contacta al administrador para renovar tu suscripción.";
+      } else if (reason === "nopermission") {
+        reasonText.textContent =
+          "No tienes los permisos necesarios para acceder a esta página.";
+      } else if (reason === "notfound") {
+        reasonText.textContent =
+          "El recurso que intentas acceder no existe o ha sido eliminado.";
+      } else {
+        reasonText.textContent = "No tienes permiso para acceder a esta página.";
+      }
+    });
+
+    window.goBack = () => {
+      window.history.back();
+    };
+
+    window.goHome = () => {
+      window.location.href = "home.html";
+    };
+
+    window.logout = async () => {
+      try {
+        await logoutUser();
+        window.location.href = "Index.html";
+      } catch (error) {
+        alert(`Error al cerrar sesión: ${error.message}`);
+      }
+    };
+  </script>
+</body>
+
+</html>

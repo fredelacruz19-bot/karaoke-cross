@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cross Karaoke - Panel DJ</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+  <header>
+    <h1>🎤 Panel DJ</h1>
+    <nav>
+      <span id="session-name" style="font-size: 1.2rem; color: var(--primary);">Cargando...</span>
+      <button id="logout-btn" class="btn btn-danger">Logout</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- QR y Controles -->
+    <div class="card">
+      <h2>Controles Remotos</h2>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div>
+          <h3>QR de Sesión</h3>
+          <div id="qr-container" style="background: white; padding: 1rem; border-radius: 6px; text-align: center;">
+            <p>Generando QR...</p>
+          </div>
+          <button id="show-qr-btn" class="btn btn-secondary" style="width: 100%; margin-top: 1rem;">
+            Mostrar QR en Display
+          </button>
+        </div>
+
+        <div>
+          <h3>Configuración</h3>
+          <div class="form-group">
+            <label for="autoplay-toggle">
+              <input type="checkbox" id="autoplay-toggle" />
+              AutoPlay
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="time-between-songs">Tiempo entre canciones (0-8s):</label>
+            <input type="number" id="time-between-songs" min="0" max="8" value="3" />
+          </div>
+          <div class="form-group">
+            <label for="requests-toggle">
+              <input type="checkbox" id="requests-toggle" checked />
+              Solicitudes Habilitadas
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agregar a Cola -->
+    <div class="card">
+      <h2>Agregar Canción</h2>
+      <div class="form-group">
+        <label for="search-input">Buscar en YouTube:</label>
+        <div style="display: flex; gap: 0.5rem;">
+          <input type="text" id="search-input" placeholder="Ej: Bohemian Rhapsody Queen"
+            style="flex: 1;" />
+          <button id="search-btn" class="btn btn-secondary">Buscar</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="youtube-url-input">O pega un link de YouTube:</label>
+        <div style="display: flex; gap: 0.5rem;">
+          <input type="text" id="youtube-url-input" placeholder="https://www.youtube.com/watch?v=..."
+            style="flex: 1;" />
+          <button id="add-from-url-btn" class="btn btn-success">Agregar</button>
+        </div>
+      </div>
+
+      <div id="search-results" class="search-results"></div>
+    </div>
+
+    <!-- Cola de Canciones -->
+    <div class="dj-panel">
+      <div>
+        <h2>Canción Actual</h2>
+        <div id="current-song" class="card">
+          <p>No hay canción en reproducción</p>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+          <button id="next-song-btn" class="btn btn-primary" style="flex: 1;">
+            ⏭️ Siguiente
+          </button>
+          <button id="restart-song-btn" class="btn btn-secondary" style="flex: 1;">
+            🔄 Reiniciar
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <h2>Cola de Canciones</h2>
+        <div class="queue-container">
+          <div id="queue-list"></div>
+        </div>
+        <button id="clear-queue-btn" class="btn btn-warning" style="width: 100%; margin-top: 1rem;">
+          ❌ Limpiar Cola
+        </button>
+      </div>
+    </div>
+
+    <!-- Historial -->
+    <div class="card">
+      <h2>Historial</h2>
+      <div id="history-container" style="max-height: 300px; overflow-y: auto;">
+        <p>No hay historial</p>
+      </div>
+    </div>
+
+    <!-- Botón Finalizar Sesión -->
+    <div class="card" style="background: rgba(239, 68, 68, 0.1); border-color: var(--danger);">
+      <h3 style="color: var(--danger);">Finalizar Sesión</h3>
+      <button id="end-session-btn" class="btn btn-danger">
+        🛑 Finalizar Sesión
+      </button>
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Cross Karaoke</p>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script type="module" src="js/firebase.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/app.js"></script>
+  <script type="module">
+    import { getCurrentUser, getUserProfile, logoutUser, initializeAuthUI } from "./js/auth.js";
+    import {
+      subscribeToSession,
+      initializePageProtection,
+      addToQueue,
+      removeFromQueue,
+      toggleRequests,
+      updateSessionSettings,
+      endSession
+    } from "./js/app.js";
+
+    let sessionId = null;
+    let session = null;
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const isAuthorized = await initializePageProtection();
+        if (!isAuthorized) return;
+
+        // Obtener sessionId de URL
+        const urlParams = new URLSearchParams(window.location.search);
+        sessionId = urlParams.get("sessionId");
+
+        if (!sessionId) {
+          alert("Sesión no especificada");
+          window.location.href = "home.html";
+          return;
+        }
+
+        initializeAuthUI();
+
+        // Suscribirse a cambios de sesión
+        const unsubscribe = subscribeToSession(sessionId, (updatedSession) => {
+          session = updatedSession;
+          updateUI();
+        });
+
+        // Inicializar controles
+        setupControls();
+
+      } catch (error) {
+        console.error("Error initializing panel:", error);
+        alert(error.message);
+        window.location.href = "home.html";
+      }
+    });
+
+    function updateUI() {
+      // Actualizar nombre de sesión
+      const sessionNameEl = document.getElementById("session-name");
+      if (sessionNameEl && session) {
+        sessionNameEl.textContent = session.name;
+      }
+
+      // Actualizar canción actual
+      const currentSongEl = document.getElementById("current-song");
+      if (session?.currentSong) {
+        currentSongEl.innerHTML = `
+          <div style="text-align: left;">
+            <h3 style="color: var(--primary);">${session.currentSong.title}</h3>
+            <p style="margin: 0;">Duración: ${session.currentSong.duration}s</p>
+          </div>
+        `;
+      } else {
+        currentSongEl.innerHTML = "<p>No hay canción en reproducción</p>";
+      }
+
+      // Actualizar cola
+      updateQueueUI();
+
+      // Actualizar historial
+      updateHistoryUI();
+
+      // Actualizar toggle de solicitudes
+      const requestsToggle = document.getElementById("requests-toggle");
+      if (requestsToggle) {
+        requestsToggle.checked = session?.requestsEnabled !== false;
+      }
+
+      // Actualizar AutoPlay
+      const autoplayToggle = document.getElementById("autoplay-toggle");
+      if (autoplayToggle) {
+        autoplayToggle.checked = session?.autoPlay || false;
+      }
+
+      // Actualizar tiempo entre canciones
+      const timeBetween = document.getElementById("time-between-songs");
+      if (timeBetween && session) {
+        timeBetween.value = session.timeBetweenSongs || 3;
+      }
+    }
+
+    function updateQueueUI() {
+      const queueList = document.getElementById("queue-list");
+      if (!session?.queue || session.queue.length === 0) {
+        queueList.innerHTML = "<p>Cola vacía</p>";
+        return;
+      }
+
+      queueList.innerHTML = session.queue
+        .map((item, index) => `
+          <div class="queue-item">
+            <div>
+              <div class="queue-title">${index + 1}. ${item.title}</div>
+              <div class="queue-time">Duración: ${item.duration}s</div>
+              <div style="font-size: 0.75rem; color: var(--border);">
+                Solicitado por: ${item.requestedBy || "Sistema"}
+              </div>
+            </div>
+            <button onclick="removeFromQueueHandler('${item.id}')" class="btn btn-small btn-danger">
+              Eliminar
+            </button>
+          </div>
+        `)
+        .join("");
+    }
+
+    function updateHistoryUI() {
+      const historyContainer = document.getElementById("history-container");
+      if (!session?.history || session.history.length === 0) {
+        historyContainer.innerHTML = "<p>No hay historial</p>";
+        return;
+      }
+
+      historyContainer.innerHTML = session.history
+        .map((item) => `
+          <div style="padding: 0.5rem; border-bottom: 1px solid var(--border);">
+            <div style="color: var(--primary);">${item.title}</div>
+            <div style="font-size: 0.875rem; color: var(--border);">
+              ${new Date(item.playedAt).toLocaleString()}
+            </div>
+          </div>
+        `)
+        .join("");
+    }
+
+    function setupControls() {
+      // Buscar canciones (placeholder)
+      document.getElementById("search-btn").addEventListener("click", async () => {
+        const searchTerm = document.getElementById("search-input").value;
+        if (!searchTerm) {
+          alert("Escribe un término de búsqueda");
+          return;
+        }
+
+        // En producción, aquí harías una búsqueda real en YouTube API
+        alert("Búsqueda en YouTube API (requiere backend)");
+      });
+
+      // Agregar desde URL
+      document.getElementById("add-from-url-btn").addEventListener("click", async () => {
+        const url = document.getElementById("youtube-url-input").value;
+        if (!url) {
+          alert("Pega una URL de YouTube");
+          return;
+        }
+
+        try {
+          // Validar que sea YouTube
+          if (!url.includes("youtube.com") && !url.includes("youtu.be")) {
+            alert("Por favor pega una URL de YouTube válida");
+            return;
+          }
+
+          // En producción, aquí obtendrías metadata del video
+          await addToQueue(
+            sessionId,
+            "Título Placeholder",
+            url,
+            "https://via.placeholder.com/120x90",
+            180,
+            0
+          );
+
+          document.getElementById("youtube-url-input").value = "";
+          alert("Canción agregada a la cola");
+        } catch (error) {
+          alert(`Error: ${error.message}`);
+        }
+      });
+
+      // AutoPlay toggle
+      document.getElementById("autoplay-toggle").addEventListener("change", async (e) => {
+        try {
+          await updateSessionSettings(sessionId, e.target.checked, session?.timeBetweenSongs);
+        } catch (error) {
+          alert(`Error: ${error.message}`);
+        }
+      });
+
+      // Tiempo entre canciones
+      document.getElementById("time-between-songs").addEventListener("change", async (e) => {
+        try {
+          await updateSessionSettings(sessionId, session?.autoPlay, parseInt(e.target.value));
+        } catch (error) {
+          alert(`Error: ${error.message}`);
+        }
+      });
+
+      // Toggle solicitudes
+      document.getElementById("requests-toggle").addEventListener("change", async (e) => {
+        try {
+          await toggleRequests(sessionId, e.target.checked);
+        } catch (error) {
+          alert(`Error: ${error.message}`);
+          e.target.checked = !e.target.checked;
+        }
+      });
+
+      // Siguiente canción
+      document.getElementById("next-song-btn").addEventListener("click", async () => {
+        if (session?.queue?.length === 0) {
+          alert("Cola vacía");
+          return;
+        }
+        alert("Cambiar canción (requiere backend)");
+      });
+
+      // Reiniciar canción
+      document.getElementById("restart-song-btn").addEventListener("click", () => {
+        alert("Reiniciar canción (requiere backend)");
+      });
+
+      // Limpiar cola
+      document.getElementById("clear-queue-btn").addEventListener("click", async () => {
+        if (!confirm("¿Limpiar toda la cola?")) return;
+        if (session?.queue?.length === 0) {
+          alert("La cola ya está vacía");
+          return;
+        }
+
+        try {
+          for (const item of session.queue) {
+            await removeFromQueue(sessionId, item.id);
+          }
+          alert("Cola limpiada");
+        } catch (error) {
+          alert(`Error: ${error.message}`);
+        }
+      });
+
+      // Finalizar sesión
+      document.getElementById("end-session-btn").addEventListener("click", async () => {
+        if (!confirm("¿Finalizar esta sesión?")) return;
+
+        try {
+          await endSession(sessionId);
+          alert("Sesión finalizada");
+          window.location.href = "home.html";
+        } catch (error) {
+          alert(`Error: ${error.message}`);
+        }
+      });
+
+      // Mostrar QR
+      document.getElementById("show-qr-btn").addEventListener("click", () => {
+        const qrContainer = document.getElementById("qr-container");
+        qrContainer.innerHTML = "";
+        new QRCode(qrContainer, {
+          text: `${window.location.origin}/Request.html?sessionId=${sessionId}`,
+          width: 256,
+          height: 256,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.H
+        });
+      });
+    }
+
+    // Funciones globales
+    window.removeFromQueueHandler = async (queueId) => {
+      try {
+        await removeFromQueue(sessionId, queueId);
+        alert("Canción removida");
+      } catch (error) {
+        alert(`Error: ${error.message}`);
+      }
+    };
+  </script>
+</body>
+
+</html>
